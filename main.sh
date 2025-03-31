@@ -198,7 +198,7 @@ main_menu() {
                 ;;
             
             5)
-                echo -e "\n${CYAN}Exiting... Happy coding! 🚀${NC}"
+                echo -e "\n${CYAN}Exiting...  🚀${NC}"
                 exit 0
                 ;;
             
