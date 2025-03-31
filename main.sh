@@ -17,7 +17,7 @@ WARNING_ICON="⚠️"
 
 # Fancy banner
 echo -e "${CYAN}======================================"
-echo -e "   Interactive Git Commit Tool"
+echo -e " Commit Wizard"
 echo -e "======================================${NC}"
 echo ""
 
