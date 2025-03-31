@@ -1,164 +1,205 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Color definitions
+# Color Definitions
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Symbols
-CHECK_MARK="✔"
-CROSS_MARK="✖"
-INFO_ICON="ℹ️"
-WARNING_ICON="⚠️"
+CHECK="✔"
+CROSS="✖"
+ARROW="➤"
+INDICATOR="●"
 
-# Fancy banner
-echo -e "${CYAN}======================================"
-echo -e " Commit Wizard"
-echo -e "======================================${NC}"
-echo ""
+# Configuration
+MAX_BRANCH_DISPLAY=10
 
-# Check if the current directory is inside a Git repository.
-if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
-    echo -e "${RED}${CROSS_MARK} Error: This script must be run inside a Git repository.${NC}"
-    exit 1
-fi
-
-# Function to fetch the list of changed files.
-fetch_changed_files() {
-    mapfile -t changed_files < <(git status --porcelain | sed 's/^...//')
+# Initialize Git Checks
+init_git_checks() {
+    if ! git rev-parse --is-inside-work-tree &> /dev/null; then
+        echo -e "${RED}${CROSS} Error: Not a Git repository${NC}"
+        exit 1
+    fi
 }
 
-# Function to commit a single file interactively.
+# Get current branch
+current_branch() {
+    git branch --show-current
+}
+
+# Fetch changed files
+fetch_changed_files() {
+    mapfile -t changed_files < <(git status --porcelain | awk '{if ($1 != "??") print $2}')
+}
+
+# Commit single file
 commit_file() {
     local file="$1"
-    git add "$file"
-    echo -e "${BLUE}${INFO_ICON} File staged: ${MAGENTA}$file${NC}"
-    read -p "$(echo -e ${YELLOW}Enter commit message for '${file}': ${NC})" commit_msg
-    if [ -n "$commit_msg" ]; then
-        git commit -m "$commit_msg" "$file"
-        echo -e "${GREEN}${CHECK_MARK} Committed: ${MAGENTA}$file${NC}"
+    git add "$file" || return 1
+    echo -e "${BLUE}${INDICATOR} Staged: ${MAGENTA}${file}${NC}"
+    
+    while true; do
+        read -rp "$(echo -e "${YELLOW}${ARROW} Commit message (q to cancel): ${NC}")" msg
+        [[ "$msg" == "q" ]] && return 2
+        [ -n "$msg" ] && break
+        echo -e "${RED}${CROSS} Message cannot be empty${NC}"
+    done
+    
+    if git commit -m "$msg" "$file"; then
+        echo -e "${GREEN}${CHECK} Committed successfully${NC}"
+        return 0
     else
-        echo -e "${RED}${WARNING_ICON} No commit message provided. Skipping commit for ${MAGENTA}$file${NC}."
+        echo -e "${RED}${CROSS} Commit failed${NC}"
+        return 1
     fi
-    echo ""
 }
 
-# Initial file list retrieval.
-fetch_changed_files
+# Display branch selector
+select_branch() {
+    local current_branch="$1"
+    mapfile -t branches < <(git for-each-ref --format='%(refname:short)' refs/heads/)
+    
+    echo -e "\n${CYAN}Available branches:${NC}"
+    local count=0
+    for ((i=0; i<${#branches[@]}; i++)); do
+        ((count++ > MAX_BRANCH_DISPLAY)) && break
+        if [[ "${branches[i]}" == "$current_branch" ]]; then
+            printf "  ${YELLOW}%2d) %s ${BLUE}(current)${NC}\n" "$((i+1))" "${branches[i]}"
+        else
+            printf "  ${YELLOW}%2d) %s${NC}\n" "$((i+1))" "${branches[i]}"
+        fi
+    done
+    
+    while true; do
+        read -rp "$(echo -e "${YELLOW}${ARROW} Select branch [1-${#branches[@]}, default=${current_branch}]: ${NC}")" choice
+        [[ -z "$choice" ]] && echo "$current_branch" && return 0
+        
+        if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#branches[@]} )); then
+            echo "${branches[$((choice-1))]}" && return 0
+        fi
+        echo -e "${RED}${CROSS} Invalid selection${NC}"
+    done
+}
 
-# Check if there are any changes to process.
-if [ ${#changed_files[@]} -eq 0 ]; then
-    echo -e "${GREEN}${CHECK_MARK} No changes found to commit.${NC}"
-    exit 0
-fi
+# Push handler
+push_handler() {
+    local target_branch
+    target_branch=$(select_branch "$(current_branch)") || return 1
+    
+    echo -e "\n${CYAN}${INDICATOR} Pushing to ${MAGENTA}${target_branch}${CYAN}...${NC}"
+    if git push origin "$target_branch"; then
+        echo -e "${GREEN}${CHECK} Push successful${NC}"
+    else
+        echo -e "${RED}${CROSS} Push failed${NC}"
+        return 1
+    fi
+}
 
-# Display the list of changed files.
-echo -e "${CYAN}Detected changed files:${NC}"
-for file in "${changed_files[@]}"; do
-    echo -e " - ${MAGENTA}$file${NC}"
-done
-
-# Main interactive menu loop.
-while true; do
-    echo ""
-    echo -e "${CYAN}Choose an option:${NC}"
-    echo -e "${YELLOW}1)${NC} Commit specific file(s)"
-    echo -e "${YELLOW}2)${NC} Commit all files"
-    echo -e "${YELLOW}3)${NC} Refresh file list"
-    echo -e "${YELLOW}4)${NC} Push commits"
-    echo -e "${YELLOW}5)${NC} Exit"
-    read -p "$(echo -e ${BLUE}Enter your choice [1-5]: ${NC})" choice
-
-    case "$choice" in
-        1)
-            # List files with numbers for selection.
-            echo -e "${CYAN}Select files to commit (separate multiple with spaces or commas):${NC}"
-            for i in "${!changed_files[@]}"; do
-                printf "${YELLOW}%d)${NC} %s\n" "$((i+1))" "${changed_files[i]}"
-            done
-            read -p "$(echo -e ${BLUE}Enter file numbers: ${NC})" file_choice_input
-
-            # Process input into array of indices
-            IFS=', ' read -ra selected_indices <<< "$file_choice_input"
-            valid_files=()
-            for index in "${selected_indices[@]}"; do
-                if [[ "$index" =~ ^[0-9]+$ ]] && (( index >= 1 && index <= ${#changed_files[@]} )); then
-                    valid_files+=("${changed_files[$((index-1))]}")
-                else
-                    echo -e "${RED}${WARNING_ICON} Invalid file number: $index. Skipping.${NC}"
-                fi
-            done
-
-            if [ ${#valid_files[@]} -eq 0 ]; then
-                echo -e "${RED}${WARNING_ICON} No valid files selected.${NC}"
-                continue
-            fi
-
-            # Commit each selected file
-            for file in "${valid_files[@]}"; do
-                echo -e "${CYAN}Processing file: ${MAGENTA}$file${NC}"
-                commit_file "$file"
-                # Refresh the file list after each commit
-                fetch_changed_files
-                if [ ${#changed_files[@]} -eq 0 ]; then
-                    echo -e "${GREEN}${CHECK_MARK} All changes have been committed.${NC}"
-                    exit 0
-                fi
-            done
-            ;;
-        2)
-            # Commit all files one by one.
+# Main interface
+main_menu() {
+    while true; do
+        fetch_changed_files
+        current_branch=$(current_branch)
+        
+        clear
+        echo -e "${CYAN}════════════════════════════════════"
+        echo -e " GIT WIZARD - ${current_branch}"
+        echo -e "════════════════════════════════════${NC}"
+        
+        if [[ ${#changed_files[@]} -gt 0 ]]; then
+            echo -e "\n${CYAN}Changed files:${NC}"
             for file in "${changed_files[@]}"; do
-                echo -e "${CYAN}Processing file: ${MAGENTA}$file${NC}"
-                commit_file "$file"
+                echo -e "  ${MAGENTA}${file}${NC}"
             done
-            echo -e "${GREEN}${CHECK_MARK} All files processed.${NC}"
-            exit 0
-            ;;
-        3)
-            # Refresh and display the current file list.
-            fetch_changed_files
-            if [ ${#changed_files[@]} -eq 0 ]; then
-                echo -e "${GREEN}${CHECK_MARK} No pending changes. Exiting.${NC}"
-                exit 0
-            else
-                echo -e "${CYAN}Updated file list:${NC}"
-                for file in "${changed_files[@]}"; do
-                    echo -e " - ${MAGENTA}$file${NC}"
-                done
-            fi
-            ;;
-        4)
-            # Check if remote 'origin' exists
-            if ! git remote get-url origin > /dev/null 2>&1; then
-                echo -e "${RED}${CROSS_MARK} Error: No remote 'origin' configured.${NC}"
-                continue
-            fi
-
-            # Confirm with user
-            read -p "$(echo -e ${YELLOW}Are you sure you want to push commits to the remote repository? [y/N]: ${NC})" confirm_push
-            if [[ "$confirm_push" =~ ^[Yy]$ ]]; then
-                echo -e "${CYAN}Pushing commits to remote...${NC}"
-                git push
-                if [ $? -eq 0 ]; then
-                    echo -e "${GREEN}${CHECK_MARK} Successfully pushed commits.${NC}"
-                else
-                    echo -e "${RED}${CROSS_MARK} Failed to push commits. Check your network or permissions.${NC}"
+        else
+            echo -e "\n${GREEN}${CHECK} No uncommitted changes${NC}"
+        fi
+        
+        echo -e "\n${BLUE}Options:${NC}"
+        echo -e "  ${YELLOW}1${NC}) Stage & commit files"
+        echo -e "  ${YELLOW}2${NC}) Commit all changes"
+        echo -e "  ${YELLOW}3${NC}) Push commits"
+        echo -e "  ${YELLOW}4${NC}) Refresh status"
+        echo -e "  ${YELLOW}5${NC}) Exit"
+        
+        read -rp "$(echo -e "\n${YELLOW}${ARROW} Select option [1-5]: ${NC}")" choice
+        
+        case $choice in
+            1)
+                if [[ ${#changed_files[@]} -eq 0 ]]; then
+                    echo -e "${YELLOW}${INDICATOR} No files to commit${NC}"
+                    sleep 1
+                    continue
                 fi
-            else
-                echo -e "${CYAN}Pushing canceled.${NC}"
-            fi
-            ;;
-        5)
-            echo -e "${CYAN}Exiting the interactive commit tool. Goodbye!${NC}"
-            exit 0
-            ;;
-        *)
-            echo -e "${RED}${WARNING_ICON} Invalid choice. Please try again.${NC}"
-            ;;
-    esac
-done
+                
+                echo -e "\n${CYAN}Select files (comma/space separated):${NC}"
+                for i in "${!changed_files[@]}"; do
+                    printf "  ${YELLOW}%2d${NC}) %s\n" "$((i+1))" "${changed_files[i]}"
+                done
+                
+                read -rp "$(echo -e "${YELLOW}${ARROW} File numbers: ${NC}")" selections
+                mapfile -t selected < <(tr ', ' '\n' <<< "$selections" | grep -v '^$')
+                
+                for selection in "${selected[@]}"; do
+                    if [[ "$selection" =~ ^[0-9]+$ ]] && (( selection >= 1 && selection <= ${#changed_files[@]} )); then
+                        commit_file "${changed_files[$((selection-1))]}"
+                        sleep 1
+                    else
+                        echo -e "${RED}${CROSS} Invalid file number: ${selection}${NC}"
+                    fi
+                done
+                ;;
+            
+            2)
+                [[ ${#changed_files[@]} -eq 0 ]] && continue
+                echo -e "\n${CYAN}Committing all changes...${NC}"
+                git add -A || continue
+                
+                while true; do
+                    read -rp "$(echo -e "${YELLOW}${ARROW} Commit message (q to cancel): ${NC}")" msg
+                    [[ "$msg" == "q" ]] && { git reset; break; }
+                    [ -n "$msg" ] && break
+                    echo -e "${RED}${CROSS} Message cannot be empty${NC}"
+                done
+                
+                git commit -m "$msg" && echo -e "${GREEN}${CHECK} All changes committed${NC}"
+                sleep 1
+                ;;
+            
+            3)
+                if ! git remote | grep -q 'origin'; then
+                    echo -e "${RED}${CROSS} No remote 'origin' configured${NC}"
+                    sleep 2
+                    continue
+                fi
+                push_handler
+                sleep 2
+                ;;
+            
+            4)
+                fetch_changed_files
+                echo -e "\n${GREEN}${CHECK} Status refreshed${NC}"
+                sleep 1
+                ;;
+            
+            5)
+                echo -e "\n${CYAN}Exiting... Happy coding! 🚀${NC}"
+                exit 0
+                ;;
+            
+            *)
+                echo -e "${RED}${CROSS} Invalid option${NC}"
+                sleep 1
+                ;;
+        esac
+    done
+}
+
+# Initialization
+init_git_checks
+trap 'echo -e "\n${RED}${CROSS} Operation cancelled${NC}"; exit 1' SIGINT
+main_menu
