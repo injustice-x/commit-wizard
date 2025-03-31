@@ -39,12 +39,20 @@ fetch_changed_files() {
 # Commit single file
 commit_file() {
     local file="$1"
-    git add "$file" || return 1
+    if ! git add "$file"; then
+        echo -e "${RED}${CROSS} Failed to stage file: ${file}${NC}"
+        return 1
+    fi
+    
     echo -e "${BLUE}${INDICATOR} Staged: ${MAGENTA}${file}${NC}"
     
     while true; do
         read -rp "$(echo -e "${YELLOW}${ARROW} Commit message (q to cancel): ${NC}")" msg
-        [[ "$msg" == "q" ]] && return 2
+        if [[ "$msg" == "q" ]]; then
+            git reset -- "$file"
+            echo -e "${YELLOW}Operation cancelled${NC}"
+            return 2
+        fi
         [ -n "$msg" ] && break
         echo -e "${RED}${CROSS} Message cannot be empty${NC}"
     done
@@ -63,14 +71,13 @@ select_branch() {
     local current_branch="$1"
     mapfile -t branches < <(git for-each-ref --format='%(refname:short)' refs/heads/)
     
-    echo -e "\n${CYAN}Available branches:${NC}"
-    local count=0
-    for ((i=0; i<${#branches[@]}; i++)); do
-        ((count++ > MAX_BRANCH_DISPLAY)) && break
+    # Display to stderr
+    echo -e "\n${CYAN}Available branches:${NC}" >&2
+    for ((i=0; i<${#branches[@]} && i<MAX_BRANCH_DISPLAY; i++)); do
         if [[ "${branches[i]}" == "$current_branch" ]]; then
-            printf "  ${YELLOW}%2d) %s ${BLUE}(current)${NC}\n" "$((i+1))" "${branches[i]}"
+            printf "  ${YELLOW}%2d) %s ${BLUE}(current)${NC}\n" "$((i+1))" "${branches[i]}" >&2
         else
-            printf "  ${YELLOW}%2d) %s${NC}\n" "$((i+1))" "${branches[i]}"
+            printf "  ${YELLOW}%2d) %s${NC}\n" "$((i+1))" "${branches[i]}" >&2
         fi
     done
     
@@ -79,19 +86,23 @@ select_branch() {
         [[ -z "$choice" ]] && echo "$current_branch" && return 0
         
         if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#branches[@]} )); then
-            echo "${branches[$((choice-1))]}" && return 0
+            echo "${branches[$((choice-1))]}"
+            return 0
         fi
-        echo -e "${RED}${CROSS} Invalid selection${NC}"
+        echo -e "${RED}${CROSS} Invalid selection${NC}" >&2
     done
 }
 
 # Push handler
 push_handler() {
     local target_branch
-    target_branch=$(select_branch "$(current_branch)") || return 1
+    if ! target_branch=$(select_branch "$(current_branch)"); then
+        echo -e "${RED}${CROSS} Branch selection failed${NC}"
+        return 1
+    fi
     
     echo -e "\n${CYAN}${INDICATOR} Pushing to ${MAGENTA}${target_branch}${CYAN}...${NC}"
-    if git push origin "$target_branch"; then
+    if git push origin "${target_branch}"; then
         echo -e "${GREEN}${CHECK} Push successful${NC}"
     else
         echo -e "${RED}${CROSS} Push failed${NC}"
@@ -103,7 +114,7 @@ push_handler() {
 main_menu() {
     while true; do
         fetch_changed_files
-        current_branch=$(current_branch)
+        local current_branch=$(current_branch)
         
         clear
         echo -e "${CYAN}════════════════════════════════════"
@@ -199,7 +210,7 @@ main_menu() {
     done
 }
 
-# Initialization
+# Main execution
 init_git_checks
 trap 'echo -e "\n${RED}${CROSS} Operation cancelled${NC}"; exit 1' SIGINT
 main_menu
