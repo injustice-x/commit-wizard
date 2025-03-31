@@ -26,33 +26,54 @@ init_git_checks() {
     fi
 }
 
-# Get current branch
 current_branch() {
     git branch --show-current
 }
 
-# Fetch changed files
 fetch_changed_files() {
     mapfile -t changed_files < <(git status --porcelain | awk '{if ($1 != "??") print $2}')
 }
 
-# Commit single file
+show_header() {
+    clear
+    echo -e "${CYAN}════════════════════════════════════"
+    echo -e " GIT WIZARD - $(current_branch)"
+    echo -e "════════════════════════════════════${NC}"
+}
+
+show_files_status() {
+    if [[ ${#changed_files[@]} -gt 0 ]]; then
+        echo -e "\n${CYAN}Changed files:${NC}"
+        for file in "${changed_files[@]}"; do
+            echo -e "  ${MAGENTA}${file}${NC}"
+        done
+    else
+        echo -e "\n${GREEN}${CHECK} No uncommitted changes${NC}"
+    fi
+}
+
+main_menu() {
+    show_header
+    show_files_status
+    
+    echo -e "\n${BLUE}Quick Actions:${NC}"
+    echo -e "  ${YELLOW}[s]${NC} Stage & commit specific files"
+    echo -e "  ${YELLOW}[a]${NC} Commit all changes"
+    echo -e "  ${YELLOW}[p]${NC} Push commits"
+    echo -e "  ${YELLOW}[r]${NC} Refresh status"
+    echo -e "  ${YELLOW}[q]${NC} Quit"
+    
+    echo -e "\n${YELLOW}${ARROW} Select action (s/a/p/r/q): ${NC}"
+}
+
 commit_file() {
     local file="$1"
-    if ! git add "$file"; then
-        echo -e "${RED}${CROSS} Failed to stage file: ${file}${NC}"
-        return 1
-    fi
-    
+    git add "$file" || return 1
     echo -e "${BLUE}${INDICATOR} Staged: ${MAGENTA}${file}${NC}"
     
     while true; do
         read -rp "$(echo -e "${YELLOW}${ARROW} Commit message (q to cancel): ${NC}")" msg
-        if [[ "$msg" == "q" ]]; then
-            git reset -- "$file"
-            echo -e "${YELLOW}Operation cancelled${NC}"
-            return 2
-        fi
+        [[ "$msg" == "q" ]] && return 2
         [ -n "$msg" ] && break
         echo -e "${RED}${CROSS} Message cannot be empty${NC}"
     done
@@ -66,151 +87,114 @@ commit_file() {
     fi
 }
 
-# Display branch selector
-select_branch() {
-    local current_branch="$1"
-    mapfile -t branches < <(git for-each-ref --format='%(refname:short)' refs/heads/)
-    
-    # Display to stderr
-    echo -e "\n${CYAN}Available branches:${NC}" >&2
-    for ((i=0; i<${#branches[@]} && i<MAX_BRANCH_DISPLAY; i++)); do
-        if [[ "${branches[i]}" == "$current_branch" ]]; then
-            printf "  ${YELLOW}%2d) %s ${BLUE}(current)${NC}\n" "$((i+1))" "${branches[i]}" >&2
-        else
-            printf "  ${YELLOW}%2d) %s${NC}\n" "$((i+1))" "${branches[i]}" >&2
-        fi
-    done
-    
+file_selection_menu() {
     while true; do
-        read -rp "$(echo -e "${YELLOW}${ARROW} Select branch [1-${#branches[@]}, default=${current_branch}]: ${NC}")" choice
-        [[ -z "$choice" ]] && echo "$current_branch" && return 0
+        show_header
+        echo -e "${CYAN}Select files:${NC}"
+        echo -e "${YELLOW}[1-9]${NC} Select file number"
+        echo -e "${YELLOW}[c]${NC} Confirm selection"
+        echo -e "${YELLOW}[b]${NC} Back to main\n"
         
-        if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#branches[@]} )); then
-            echo "${branches[$((choice-1))]}"
-            return 0
-        fi
-        echo -e "${RED}${CROSS} Invalid selection${NC}" >&2
-    done
-}
-
-# Push handler
-push_handler() {
-    local target_branch
-    if ! target_branch=$(select_branch "$(current_branch)"); then
-        echo -e "${RED}${CROSS} Branch selection failed${NC}"
-        return 1
-    fi
-    
-    echo -e "\n${CYAN}${INDICATOR} Pushing to ${MAGENTA}${target_branch}${CYAN}...${NC}"
-    if git push origin "${target_branch}"; then
-        echo -e "${GREEN}${CHECK} Push successful${NC}"
-    else
-        echo -e "${RED}${CROSS} Push failed${NC}"
-        return 1
-    fi
-}
-
-# Main interface
-main_menu() {
-    while true; do
-        fetch_changed_files
-        local current_branch=$(current_branch)
+        for i in "${!changed_files[@]}"; do
+            printf "  ${YELLOW}%d)${NC} %s\n" "$((i+1))" "${changed_files[i]}"
+        done
         
-        clear
-        echo -e "${CYAN}════════════════════════════════════"
-        echo -e " GIT WIZARD - ${current_branch}"
-        echo -e "════════════════════════════════════${NC}"
+        read -p "$(echo -e "\n${YELLOW}${ARROW} Select files: ${NC}")" selection
         
-        if [[ ${#changed_files[@]} -gt 0 ]]; then
-            echo -e "\n${CYAN}Changed files:${NC}"
-            for file in "${changed_files[@]}"; do
-                echo -e "  ${MAGENTA}${file}${NC}"
-            done
-        else
-            echo -e "\n${GREEN}${CHECK} No uncommitted changes${NC}"
-        fi
-        
-        echo -e "\n${BLUE}Options:${NC}"
-        echo -e "  ${YELLOW}1${NC}) Stage & commit files"
-        echo -e "  ${YELLOW}2${NC}) Commit all changes"
-        echo -e "  ${YELLOW}3${NC}) Push commits"
-        echo -e "  ${YELLOW}4${NC}) Refresh status"
-        echo -e "  ${YELLOW}5${NC}) Exit"
-        
-        read -rp "$(echo -e "\n${YELLOW}${ARROW} Select option [1-5]: ${NC}")" choice
-        
-        case $choice in
-            1)
-                if [[ ${#changed_files[@]} -eq 0 ]]; then
-                    echo -e "${YELLOW}${INDICATOR} No files to commit${NC}"
-                    sleep 1
-                    continue
+        case $selection in
+            [1-9])
+                index=$((selection-1))
+                if [[ -n "${changed_files[$index]}" ]]; then
+                    commit_file "${changed_files[$index]}"
+                    read -n1 -p "Press any key to continue..."
                 fi
-                
-                echo -e "\n${CYAN}Select files (comma/space separated):${NC}"
-                for i in "${!changed_files[@]}"; do
-                    printf "  ${YELLOW}%2d${NC}) %s\n" "$((i+1))" "${changed_files[i]}"
-                done
-                
-                read -rp "$(echo -e "${YELLOW}${ARROW} File numbers: ${NC}")" selections
-                mapfile -t selected < <(tr ', ' '\n' <<< "$selections" | grep -v '^$')
-                
-                for selection in "${selected[@]}"; do
-                    if [[ "$selection" =~ ^[0-9]+$ ]] && (( selection >= 1 && selection <= ${#changed_files[@]} )); then
-                        commit_file "${changed_files[$((selection-1))]}"
-                        sleep 1
-                    else
-                        echo -e "${RED}${CROSS} Invalid file number: ${selection}${NC}"
-                    fi
-                done
                 ;;
-            
-            2)
-                [[ ${#changed_files[@]} -eq 0 ]] && continue
-                echo -e "\n${CYAN}Committing all changes...${NC}"
-                git add -A || continue
-                
-                while true; do
-                    read -rp "$(echo -e "${YELLOW}${ARROW} Commit message (q to cancel): ${NC}")" msg
-                    [[ "$msg" == "q" ]] && { git reset; break; }
-                    [ -n "$msg" ] && break
-                    echo -e "${RED}${CROSS} Message cannot be empty${NC}"
-                done
-                
-                git commit -m "$msg" && echo -e "${GREEN}${CHECK} All changes committed${NC}"
-                sleep 1
+            c|C)
+                return 0
                 ;;
-            
-            3)
-                if ! git remote | grep -q 'origin'; then
-                    echo -e "${RED}${CROSS} No remote 'origin' configured${NC}"
-                    sleep 2
-                    continue
-                fi
-                push_handler
-                sleep 2
+            b|B)
+                return 1
                 ;;
-            
-            4)
-                fetch_changed_files
-                echo -e "\n${GREEN}${CHECK} Status refreshed${NC}"
-                sleep 1
-                ;;
-            
-            5)
-                echo -e "\n${CYAN}Exiting...  🚀${NC}"
-                exit 0
-                ;;
-            
             *)
-                echo -e "${RED}${CROSS} Invalid option${NC}"
+                echo -e "${RED}Invalid selection${NC}"
                 sleep 1
                 ;;
         esac
     done
 }
 
-# Main execution
+push_handler() {
+    local target_branch
+    target_branch=$(current_branch)
+    echo -e "\n${CYAN}${INDICATOR} Pushing to ${MAGENTA}${target_branch}${CYAN}...${NC}"
+    
+    if git push origin "${target_branch}"; then
+        echo -e "${GREEN}${CHECK} Push successful${NC}"
+    else
+        echo -e "${RED}${CROSS} Push failed${NC}"
+    fi
+    sleep 2
+}
+
 init_git_checks
 trap 'echo -e "\n${RED}${CROSS} Operation cancelled${NC}"; exit 1' SIGINT
-main_menu
+
+while true; do
+    fetch_changed_files
+    main_menu
+    
+    read -n1 action
+    echo  # Add newline after input
+    
+    case $action in
+        s|S)
+            if [[ ${#changed_files[@]} -eq 0 ]]; then
+                echo -e "${YELLOW}No files to commit${NC}"
+                sleep 1
+                continue
+            fi
+            file_selection_menu
+            ;;
+            
+        a|A)
+            [[ ${#changed_files[@]} -eq 0 ]] && continue
+            echo -e "\n${CYAN}Committing all changes...${NC}"
+            git add -A
+            
+            while true; do
+                read -rp "$(echo -e "${YELLOW}${ARROW} Commit message (q to cancel): ${NC}")" msg
+                [[ "$msg" == "q" ]] && { git reset; break; }
+                [ -n "$msg" ] && break
+                echo -e "${RED}Message cannot be empty${NC}"
+            done
+            
+            git commit -m "$msg" && echo -e "${GREEN}All changes committed${NC}"
+            sleep 1
+            ;;
+            
+        p|P)
+            if ! git remote | grep -q 'origin'; then
+                echo -e "${RED}No remote 'origin' configured${NC}"
+                sleep 2
+                continue
+            fi
+            push_handler
+            ;;
+            
+        r|R)
+            fetch_changed_files
+            echo -e "\n${GREEN}Status refreshed${NC}"
+            sleep 1
+            ;;
+            
+        q|Q)
+            echo -e "\n${CYAN}Exiting... Happy coding! 🚀${NC}"
+            exit 0
+            ;;
+            
+        *)
+            echo -e "${RED}Invalid option${NC}"
+            sleep 1
+            ;;
+    esac
+done
