@@ -1,4 +1,3 @@
-````markdown
 # Commit Wizard 🧙♂️
 
 A modern, interactive Git workflow assistant and real-time feedback.
@@ -30,7 +29,6 @@ chmod +x commit-wizard.sh
 # Run (from Git repo)
 ./commit-wizard.sh
 ```
-````
 
 ## Usage 🕹️
 
