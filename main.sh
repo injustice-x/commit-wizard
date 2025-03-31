@@ -66,33 +66,49 @@ done
 while true; do
     echo ""
     echo -e "${CYAN}Choose an option:${NC}"
-    echo -e "${YELLOW}1)${NC} Commit a specific file"
+    echo -e "${YELLOW}1)${NC} Commit specific file(s)"
     echo -e "${YELLOW}2)${NC} Commit all files"
     echo -e "${YELLOW}3)${NC} Refresh file list"
-    echo -e "${YELLOW}4)${NC} Exit"
-    read -p "$(echo -e ${BLUE}Enter your choice [1-4]: ${NC})" choice
+    echo -e "${YELLOW}4)${NC} Push commits"
+    echo -e "${YELLOW}5)${NC} Exit"
+    read -p "$(echo -e ${BLUE}Enter your choice [1-5]: ${NC})" choice
 
     case "$choice" in
         1)
             # List files with numbers for selection.
-            echo -e "${CYAN}Select a file to commit:${NC}"
+            echo -e "${CYAN}Select files to commit (separate multiple with spaces or commas):${NC}"
             for i in "${!changed_files[@]}"; do
                 printf "${YELLOW}%d)${NC} %s\n" "$((i+1))" "${changed_files[i]}"
             done
-            read -p "$(echo -e ${BLUE}Enter file number: ${NC})" file_choice
-            if [[ "$file_choice" =~ ^[0-9]+$ ]] && (( file_choice >= 1 && file_choice <= ${#changed_files[@]} )); then
-                selected_file="${changed_files[$((file_choice-1))]}"
-                echo -e "${CYAN}You selected: ${MAGENTA}$selected_file${NC}"
-                commit_file "$selected_file"
-                # Refresh the file list after commit.
+            read -p "$(echo -e ${BLUE}Enter file numbers: ${NC})" file_choice_input
+
+            # Process input into array of indices
+            IFS=', ' read -ra selected_indices <<< "$file_choice_input"
+            valid_files=()
+            for index in "${selected_indices[@]}"; do
+                if [[ "$index" =~ ^[0-9]+$ ]] && (( index >= 1 && index <= ${#changed_files[@]} )); then
+                    valid_files+=("${changed_files[$((index-1))]}")
+                else
+                    echo -e "${RED}${WARNING_ICON} Invalid file number: $index. Skipping.${NC}"
+                fi
+            done
+
+            if [ ${#valid_files[@]} -eq 0 ]; then
+                echo -e "${RED}${WARNING_ICON} No valid files selected.${NC}"
+                continue
+            fi
+
+            # Commit each selected file
+            for file in "${valid_files[@]}"; do
+                echo -e "${CYAN}Processing file: ${MAGENTA}$file${NC}"
+                commit_file "$file"
+                # Refresh the file list after each commit
                 fetch_changed_files
                 if [ ${#changed_files[@]} -eq 0 ]; then
                     echo -e "${GREEN}${CHECK_MARK} All changes have been committed.${NC}"
                     exit 0
                 fi
-            else
-                echo -e "${RED}${WARNING_ICON} Invalid selection. Please try again.${NC}"
-            fi
+            done
             ;;
         2)
             # Commit all files one by one.
@@ -117,6 +133,27 @@ while true; do
             fi
             ;;
         4)
+            # Check if remote 'origin' exists
+            if ! git remote get-url origin > /dev/null 2>&1; then
+                echo -e "${RED}${CROSS_MARK} Error: No remote 'origin' configured.${NC}"
+                continue
+            fi
+
+            # Confirm with user
+            read -p "$(echo -e ${YELLOW}Are you sure you want to push commits to the remote repository? [y/N]: ${NC})" confirm_push
+            if [[ "$confirm_push" =~ ^[Yy]$ ]]; then
+                echo -e "${CYAN}Pushing commits to remote...${NC}"
+                git push
+                if [ $? -eq 0 ]; then
+                    echo -e "${GREEN}${CHECK_MARK} Successfully pushed commits.${NC}"
+                else
+                    echo -e "${RED}${CROSS_MARK} Failed to push commits. Check your network or permissions.${NC}"
+                fi
+            else
+                echo -e "${CYAN}Pushing canceled.${NC}"
+            fi
+            ;;
+        5)
             echo -e "${CYAN}Exiting the interactive commit tool. Goodbye!${NC}"
             exit 0
             ;;
@@ -125,4 +162,3 @@ while true; do
             ;;
     esac
 done
-
