@@ -20,8 +20,8 @@ Git Wizard is an interactive Bash script designed to streamline your Git workflo
 1. **Clone the repository:**
 
    ```bash
-   git clone <repository-url>
-   cd <repository-directory>
+   git clone https://github.com/injustice-x/commit-wizard.git>
+   cd commit-wizard
    ```
 
 2. **Make the script executable:**
