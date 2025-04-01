@@ -27,13 +27,13 @@ Git Wizard is an interactive Bash script designed to streamline your Git workflo
 2. **Make the script executable:**
 
    ```bash
-   chmod +x git-wizard.sh
+   chmod +x commit-wizard.sh
    ```
 
 3. **Run the script:**
 
    ```bash
-   ./git-wizard.sh
+   ./commit-wizard.sh
    ```
 
 ## Usage
