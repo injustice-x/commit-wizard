@@ -19,19 +19,19 @@ A modern, interactive Git workflow assistant and real-time feedback.
 
 ## Installation ⚡
 
-# Download script
+### Download script
 
 ```
 curl -O https://raw.githubusercontent.com/injustice-x/commit-wizard/main/commit-wizard.sh
 ```
 
-# Make executable
+### Make executable
 
 ```
 chmod +x commit-wizard.sh
 ```
 
-# Run (from Git repo)
+### Run (from Git repo)
 
 ```
 ./commit-wizard.sh
