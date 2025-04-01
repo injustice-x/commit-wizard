@@ -19,16 +19,17 @@ A modern, interactive Git workflow assistant and real-time feedback.
 
 ## Installation ⚡
 
-```bash
 # Download script
+
 curl -O https://raw.githubusercontent.com/injustice-x/commit-wizard/main/commit-wizard.sh
 
 # Make executable
+
 chmod +x commit-wizard.sh
 
 # Run (from Git repo)
+
 ./commit-wizard.sh
-```
 
 ## Usage 🕹️
 
@@ -76,16 +77,3 @@ Press p → Pushing to main...
 - Bash 4.0+
 - Git 2.20+
 - Unix-like environment (Linux/macOS/WSL)
-
-## Contributing 🤝
-
-Found a bug? Want new features?
-
-1. [Open Issue](https://github.com/yourusername/git-wizard/issues)
-2. Discuss proposal
-3. Submit PR
-
-## License 📜
-
-MIT License - See [LICENSE](LICENSE)
-
