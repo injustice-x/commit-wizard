@@ -21,15 +21,21 @@ A modern, interactive Git workflow assistant and real-time feedback.
 
 # Download script
 
+```
 curl -O https://raw.githubusercontent.com/injustice-x/commit-wizard/main/commit-wizard.sh
+```
 
 # Make executable
 
+```
 chmod +x commit-wizard.sh
+```
 
 # Run (from Git repo)
 
+```
 ./commit-wizard.sh
+```
 
 ## Usage 🕹️
 
