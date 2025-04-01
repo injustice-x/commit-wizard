@@ -66,6 +66,14 @@ main_menu() {
     echo -e "\n${YELLOW}${ARROW} Select action (s/a/p/r/q): ${NC}"
 }
 
+# New function to show git diff for a file
+show_diff() {
+    local file="$1"
+    echo -e "${CYAN}Git diff for ${MAGENTA}${file}${CYAN}:${NC}"
+    git diff "$file"
+    echo -e "\n"
+}
+
 commit_file() {
     local file="$1"
     git add "$file" || return 1
@@ -105,6 +113,8 @@ file_selection_menu() {
             [1-9])
                 index=$((selection-1))
                 if [[ -n "${changed_files[$index]}" ]]; then
+                    # Display the diff for the selected file
+                    show_diff "${changed_files[$index]}"
                     commit_file "${changed_files[$index]}"
                     read -n1 -p "Press any key to continue..."
                 fi
@@ -198,3 +208,4 @@ while true; do
             ;;
     esac
 done
+
