@@ -1,85 +1,79 @@
-# Commit Wizard 🧙♂️
+# Git Wizard
 
-A modern, interactive Git workflow assistant and real-time feedback.
+Git Wizard is an interactive Bash script designed to streamline your Git workflow. It provides a user-friendly interface to view changed files, inspect diffs before committing, stage specific files, commit changes with custom messages, push commits to a remote repository, and refresh your working status—all with colorful, easy-to-read output.
 
-## Features ✨
+## Features
 
-- **Hybrid Navigation System**  
-  `1-9` for direct selection + `s/a/p/r/q` quick-access letters
-- **Smart File Handling**  
-  Stage/commit individual files or all changes
-- **Auto-Refresh Status**  
-  Real-time repository state tracking
-- **Color-Coded UI**  
-  Visual feedback with intuitive symbols
-- **Error Prevention**  
-  Input validation & operation confirmation
-- **Cross-Platform**  
-  Works on Linux/macOS/WSL
+- **Interactive Menu:** Quickly choose actions like staging specific files, committing all changes, pushing commits, or refreshing the Git status.
+- **Diff Preview:** Before committing a file, view its Git diff to see what changes you are about to commit.
+- **Custom Commit Messages:** Prompt for a commit message with the ability to cancel the operation.
+- **Colored Output:** Uses colored text and symbols for better readability and clarity.
+- **Error Handling:** Checks if the current directory is a valid Git repository and handles common Git errors.
 
-## Installation ⚡
+## Prerequisites
 
-### Download script
+- **Git:** Ensure Git is installed and available in your system's PATH.
+- **Bash:** The script is written for Bash. Make sure you're running it in an environment that supports Bash scripts.
 
-```
-curl -O https://raw.githubusercontent.com/injustice-x/commit-wizard/main/commit-wizard.sh
-```
+## Installation
 
-### Make executable
+1. **Clone the repository:**
 
-```
-chmod +x commit-wizard.sh
-```
+   ```bash
+   git clone <repository-url>
+   cd <repository-directory>
+   ```
 
-### Run (from Git repo)
+2. **Make the script executable:**
 
-```
-./commit-wizard.sh
-```
+   ```bash
+   chmod +x git-wizard.sh
+   ```
 
-## Usage 🕹️
+3. **Run the script:**
 
-### Main Menu
+   ```bash
+   ./git-wizard.sh
+   ```
 
-```
-[1-9] Select file number
-[s] Stage files    [a] Commit All
-[p] Push           [r] Refresh
-[q] Quit
-```
+## Usage
 
-### Key Shortcuts
+When you run the script inside a Git repository, you will see an interactive menu:
 
-| Key | Action               | Context   |
-| --- | -------------------- | --------- |
-| `s` | Stage specific files | Main menu |
-| `a` | Commit all changes   | Main menu |
-| `p` | Push to remote       | Main menu |
-| `c` | Confirm selection    | File menu |
-| `b` | Back                 | Sub-menus |
+- **Main Menu Options:**
 
-## Example Workflow 📋
+  - **[s] Stage & Commit Specific Files:**  
+    Select this option to choose individual files for staging and committing. The script will display the Git diff for the selected file before prompting for a commit message.
+  - **[a] Commit All Changes:**  
+    This option stages and commits all uncommitted changes in one go.
+  - **[p] Push Commits:**  
+    Pushes your commits to the remote repository on the current branch. The script checks if the remote `origin` is configured.
+  - **[r] Refresh Status:**  
+    Refreshes the current Git status to display the latest changes.
+  - **[q] Quit:**  
+    Exits the Git Wizard script.
 
-1. **Stage files**
+- **File Selection Menu:**
+  - When selecting specific files (option **s**), you can choose files by their displayed number.
+  - After a file is selected, its changes are shown using `git diff`.
+  - You will then be prompted to enter a commit message. You can cancel this process by entering `q`.
 
-```bash
-Press s → Select files with 1-9 → c to confirm
-```
+## Customization
 
-2. **Write commit message**
+- **Color and Symbol Settings:**  
+  Modify the color variables (`RED`, `GREEN`, etc.) and symbols (`CHECK`, `CROSS`, etc.) at the beginning of the script to customize the look and feel.
+- **Branch Display Limit:**  
+  Change the `MAX_BRANCH_DISPLAY` variable if you need to adjust how many branches are shown.
 
-```
-? Commit message: Add new user auth flow
-```
+## Troubleshooting
 
-3. **Push changes**
+- **Not a Git Repository:**  
+  If you run the script outside a Git repository, it will display an error and exit.
+- **Push Failures:**  
+  Ensure that the remote `origin` is correctly set up if you encounter issues when pushing commits.
+- **Empty Commit Messages:**  
+  The script does not allow empty commit messages. Make sure to provide a meaningful message when prompted.
 
-```
-Press p → Pushing to main...
-```
+## Contributing
 
-## Technical Requirements ⚙️
-
-- Bash 4.0+
-- Git 2.20+
-- Unix-like environment (Linux/macOS/WSL)
+Contributions are welcome! Feel free to fork the repository and submit pull requests for improvements or bug fixes.
